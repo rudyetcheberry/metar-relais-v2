@@ -1,0 +1,117 @@
+# Conditions Bidart
+
+PWA mobile de relevés de vent, houle et marée sur la commune de Bidart
+(Pays basque, 43.4333° N / 1.5833° O), avec alertes entièrement configurables
+**et gestion multi-spots**.
+
+## Fonctionnalités
+
+- **Multi-spots** : onglet dédié pour gérer ses spots (Bidart Plage Centrale,
+  Ilbarritz, Pavillon Royal, Guéthary-Parlementia par défaut) — chaque spot a
+  ses propres coordonnées **et ses propres critères favorables**. Sélecteur
+  rapide en tête d'application.
+- **Relevés** : houle (hauteur, période, direction), vent (vitesse, secteur, rafales),
+  température de l'eau, prochaine marée — badge vert/rouge comparé aux critères du spot.
+- **Graphique de houle 48 h** (SVG) : bande verte de vos critères, points verts/rouges
+  selon que toutes les conditions sont réunies.
+- **Prévisions 48 h** : tableau horaire, lignes favorables surlignées.
+- **Alertes configurables par spot** : seuils de houle (min/max), période minimale,
+  vitesse et secteurs de vent, préavis de marée (haute/basse).
+- **Notifications** locales quand les critères du spot actif sont réunis ou qu'une marée approche.
+- **Fenêtres favorables** : liste des créneaux de 48 h satisfaisant tous les critères.
+- **Mode démo** (désactivé par défaut) : données simulées avec bandeau d'avertissement
+  visible, à activer dans Réglages pour tester sans connexion.
+- **Hors ligne** : service worker « réseau d'abord » (code toujours à jour, cache en
+  secours) et dernier relevé connu affiché en cas d'erreur.
+- **Marées partagées** : les marées sont régionales, un seul cache 24 h pour tous les spots.
+
+## Données et quota
+
+- **Vent, houle, température de l'eau** : [Open-Meteo](https://open-meteo.com)
+  (Marine API + Forecast API) — gratuit, sans clé, sans quota.
+- **Marées** : [Stormglass API](https://stormglass.io) (offre gratuite : 10 requêtes/jour).
+
+L'application économise le quota Stormglass :
+
+- marées mises en cache **24 h** (1 seule requête/jour) ;
+- météo mise en cache **6 h** côté application (sans coût quota) ;
+- compteur de requêtes du jour visible dans Réglages, avec quota configurable ;
+- blocage automatique avant d'atteindre la limite du plan ;
+- un bouton **↻** permet de forcer une actualisation ;
+- en cas d'erreur, le dernier relevé connu reste affiché avec son horodatage.
+
+- `/v2/weather/point` — vent, houle, température de l'eau
+- `/v2/tide/extremes/point` — marées hautes et basses
+
+La clé API est saisie dans l'onglet Réglages et stockée uniquement en local
+(`localStorage`). Aucun serveur intermédiaire.
+
+## Vent observé (METAR LFBZ) — optionnel
+
+Pour afficher en plus le vent **mesuré** à l'aéroport de Biarritz-Anglet (LFBZ,
+toutes les 30 min), déployez ce mini-relais sur [Cloudflare Workers](https://workers.cloudflare.com)
+(gratuit, 100 000 requêtes/jour) — aviationweather.gov n'autorise pas les appels
+directs depuis un navigateur :
+
+```javascript
+export default {
+  async fetch(request) {
+    const url = new URL(request.url);
+    const cors = {
+      "Access-Control-Allow-Origin": "*",
+      "Access-Control-Allow-Methods": "GET,OPTIONS",
+    };
+    if (request.method === "OPTIONS") return new Response(null, { headers: cors });
+    const target = "https://aviationweather.gov/api/data/metar?" + url.search;
+    const res = await fetch(target, { headers: { "User-Agent": "ConditionsBidart/1.0" } });
+    return new Response(await res.text(), {
+      status: res.status,
+      headers: { ...cors, "Content-Type": "application/json" },
+    });
+  },
+};
+```
+
+Collez ensuite l'adresse du Worker (ex. `https://mon-relais.workers.dev`) dans
+Réglages → « Vent observé (METAR LFBZ) ». Une carte « Vent observé (LFBZ) »
+apparaît dans Relevés (cache 30 min, soit la fréquence des METAR).
+
+## Précision de la houle
+
+- **Hauteur affichée = hauteur totale des vagues** (houle primaire + mer de vent),
+  plus proche de ce qu'on observe à la plage ; la hauteur de la houle primaire
+  seule reste indiquée en détail.
+- **Période affichée = période de pic** (energy period), plus significative en
+  surf que la période moyenne.
+
+## Lancer en local
+
+Le service worker exige HTTPS ou localhost :
+
+```bash
+cd bidart-conditions
+python3 -m http.server 8080
+```
+
+Ouvrir `http://localhost:8080` sur mobile (même réseau) ou sur desktop en mode
+appareil mobile des DevTools, puis « Ajouter à l'écran d'accueil ».
+
+## Structure
+
+```
+index.html          Interface (4 onglets)
+manifest.webmanifest  Manifeste PWA (installable)
+sw.js               Service worker (cache + notifications)
+css/styles.css      Thème mobile-first
+js/storage.js       Persistance localStorage (réglages, critères, dernier relevé)
+js/api.js           Open-Meteo (vent, houle) + Stormglass (marées) + données de démo
+js/alerts.js        Moteur de critères et fenêtres favorables
+js/app.js           Logique d'interface et notifications
+```
+
+## Notes
+
+- Les notifications se déclenchent quand l'app est ouverte (vérification au
+  chargement puis toutes les 15 min). Pour des notifications en arrière-plan
+  complet (app fermée), il faudrait ajouter un serveur de push (Web Push + VAPID).
+- Le point par défaut est la plage de Bidart ; il est modifiable dans Réglages.

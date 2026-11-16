@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#0b3d5c">
+  <title>Conditions Bidart</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/styles.css?v=11">
+  <script>
+    window.addEventListener('error', function () {
+      var el = document.getElementById('boot-error');
+      if (el && el.classList.contains('hidden')) {
+        el.classList.remove('hidden');
+        el.textContent = "Erreur de chargement de l'application : votre navigateur est peut-être trop ancien. Essayez un Chrome ou Firefox récent, ou videz le cache (Ctrl+Maj+R).";
+      }
+    });
+  </script>
+</head>
+<body>
+  <header class="topbar">
+    <div class="topbar-row">
+      <div>
+        <h1>Conditions Bidart</h1>
+        <p class="subtitle" id="last-update">—</p>
+      </div>
+      <button id="btn-refresh" class="refresh-btn" aria-label="Actualiser">↻</button>
+    </div>
+  </header>
+
+  <main id="main">
+    <div id="boot-error" class="demo-banner hidden"></div>
+    <div class="card spot-bar">
+      <label>Spot actif
+        <select id="spot-select"></select>
+      </label>
+    </div>
+    <div id="demo-banner" class="demo-banner hidden">
+      ⚠️ Mode démo actif : données simulées. Désactivez-le dans l'onglet Réglages.
+    </div>
+    <!-- ONGLET RELEVÉS -->
+    <section id="tab-current" class="tab active">
+      <div id="current-cards" class="cards">
+        <p class="hint">Chargement des relevés…</p>
+      </div>
+      <div class="card">
+        <h2>Prochaines marées</h2>
+        <ul id="tide-list" class="tide-list"><li class="hint">—</li></ul>
+      </div>
+    </section>
+
+    <!-- ONGLET PRÉVISIONS -->
+    <section id="tab-forecast" class="tab">
+      <div class="card">
+        <h2>Houle — 48 h</h2>
+        <p class="hint">Bande verte : votre plage de houle idéale. Points verts : conditions favorables (houle + période + vent).</p>
+        <div id="swell-chart"></div>
+      </div>
+      <div class="card">
+        <h2>Prévisions 48 h</h2>
+        <div class="table-wrap">
+          <table id="forecast-table">
+            <thead>
+              <tr>
+                <th>Heure</th><th>Houle</th><th>Période</th><th>Vent</th><th>Secteur</th><th>Marée</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ONGLET ALERTES -->
+    <section id="tab-alerts" class="tab">
+      <div class="card">
+        <h2>Critères du spot actif</h2>
+        <p class="hint" id="active-criteria">—</p>
+        <p class="hint">Pour les modifier, allez dans l'onglet <strong>Spots</strong> : chaque spot a ses propres critères.</p>
+      </div>
+      <div class="card">
+        <h2>Notifications</h2>
+        <button id="btn-notify" class="primary">Activer les notifications</button>
+        <p id="notify-status" class="hint">—</p>
+      </div>
+      <div class="card">
+        <h2>Fenêtres favorables (48 h)</h2>
+        <ul id="windows-list" class="windows-list"><li class="hint">—</li></ul>
+      </div>
+    </section>
+
+    <!-- ONGLET SPOTS -->
+    <section id="tab-spots" class="tab">
+      <div class="card">
+        <h2>Mes spots de surf</h2>
+        <ul id="spots-list" class="spots-list"></ul>
+        <button id="btn-add-spot" class="primary">+ Ajouter un spot</button>
+      </div>
+      <div class="card" id="spot-edit-card" style="display:none">
+        <h2 id="spot-edit-title">Nouveau spot</h2>
+        <form id="spot-form">
+          <fieldset>
+            <legend>Spot</legend>
+            <label>Nom
+              <input type="text" id="spot-name" placeholder="Ex : Bidart — Plage Centrale">
+            </label>
+            <label>Latitude
+              <input type="number" id="spot-lat" step="0.0001">
+            </label>
+            <label>Longitude
+              <input type="number" id="spot-lng" step="0.0001">
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Critères favorables — Houle</legend>
+            <label>Hauteur minimum (m)
+              <input type="number" id="spot-swell-min" step="0.1" min="0" max="10">
+            </label>
+            <label>Hauteur maximum (m)
+              <input type="number" id="spot-swell-max" step="0.1" min="0" max="10">
+            </label>
+            <label>Période minimum (s)
+              <input type="number" id="spot-period-min" step="1" min="0" max="25">
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Critères favorables — Vent</legend>
+            <label>Vitesse maximum (km/h)
+              <input type="number" id="spot-wind-max" step="1" min="0" max="150">
+            </label>
+            <label>Secteurs de vent acceptés
+              <select id="spot-wind-dir" multiple size="6">
+                <option value="any">Tous secteurs</option>
+                <option value="N">Nord</option>
+                <option value="NE">Nord-Est</option>
+                <option value="E">Est</option>
+                <option value="SE">Sud-Est</option>
+                <option value="S">Sud</option>
+                <option value="SW">Sud-Ouest</option>
+                <option value="W">Ouest</option>
+                <option value="NW">Nord-Ouest</option>
+              </select>
+            </label>
+          </fieldset>
+          <fieldset>
+            <legend>Critères favorables — Marée</legend>
+            <label>Prévenir avant
+              <select id="spot-tide-lead">
+                <option value="0">Jamais</option>
+                <option value="30">30 min</option>
+                <option value="60">1 h</option>
+                <option value="120">2 h</option>
+              </select>
+            </label>
+            <label>États concernés
+              <select id="spot-tide-states" multiple size="2">
+                <option value="high">Marée haute</option>
+                <option value="low">Marée basse</option>
+              </select>
+            </label>
+          </fieldset>
+          <button type="submit" class="primary">Enregistrer le spot</button>
+          <button type="button" id="btn-cancel-spot" style="margin-top:8px">Annuler</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- ONGLET RÉGLAGES -->
+    <section id="tab-settings" class="tab">
+      <div class="card">
+        <h2>Marées (API Stormglass)</h2>
+        <p class="hint">Le vent et la houle viennent d'Open-Meteo (gratuit, sans clé, sans limite).
+          Seules les marées utilisent Stormglass : créez un compte gratuit sur stormglass.io
+          pour obtenir une clé (10 requêtes/jour en offre gratuite, l'app n'en utilise qu'une).
+          La clé reste stockée sur votre téléphone.</p>
+        <label>Clé API
+          <input type="password" id="api-key" placeholder="Votre clé Stormglass" autocomplete="off">
+        </label>
+        <button id="btn-save-key" class="primary">Enregistrer la clé</button>
+      </div>
+      <div class="card">
+        <h2>Point de mesure</h2>
+        <label>Latitude
+          <input type="number" id="lat" step="0.0001">
+        </label>
+        <label>Longitude
+          <input type="number" id="lng" step="0.0001">
+        </label>
+        <button id="btn-save-point" class="primary">Enregistrer le point</button>
+      </div>
+      <div class="card">
+        <h2>Vent observé (METAR LFBZ — optionnel)</h2>
+        <p class="hint">Pour afficher le vent <strong>mesuré</strong> à l'aéroport de Biarritz
+          (toutes les 30 min) en plus du vent prévu, déployez le mini-relais Cloudflare Worker
+          fourni dans le README du dépôt, puis collez son adresse ici. Sans relais, seul le
+          vent prévu Open-Meteo est affiché.</p>
+        <label>URL du relais METAR
+          <input type="url" id="metar-relay" placeholder="https://mon-relais.workers.dev" autocomplete="off">
+        </label>
+        <button id="btn-save-relay" class="primary">Enregistrer le relais</button>
+      </div>
+      <div class="card">
+        <h2>Quota Stormglass (marées)</h2>
+        <p class="hint">Offre gratuite : 10 requêtes/jour, dont l'app n'utilise qu'une seule
+          (marées mises en cache 24 h). Le vent et la houle ne consomment rien.</p>
+        <p id="usage-status" class="hint">—</p>
+        <label>Quota quotidien de votre plan (requêtes)
+          <input type="number" id="daily-quota" min="1" max="1000">
+        </label>
+        <button id="btn-save-quota" class="primary">Enregistrer le quota</button>
+      </div>
+      <div class="card">
+        <h2>Mode démo</h2>
+        <label class="switch-row">
+          <span>Utiliser des données simulées (sans clé API)</span>
+          <input type="checkbox" id="demo-mode">
+        </label>
+      </div>
+      <div class="card">
+        <h2>À propos</h2>
+        <p class="hint" id="app-version">—</p>
+      </div>
+    </section>
+  </main>
+
+  <nav class="bottom-nav">
+    <button data-tab="tab-current" class="active">Relevés</button>
+    <button data-tab="tab-forecast">Prévisions</button>
+    <button data-tab="tab-alerts">Alertes</button>
+    <button data-tab="tab-spots">Spots</button>
+    <button data-tab="tab-settings">Réglages</button>
+  </nav>
+
+  <script type="module" src="js/app.js?v=11"></script>
+</body>
+</html>
